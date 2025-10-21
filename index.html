@@ -1,1 +1,413 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Σύστημα Τιμολογίων - Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div id="app" class="min-h-screen p-4">
+        <div class="max-w-7xl mx-auto">
+            <!-- Header -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">📊 Σύστημα Τιμολογίων</h1>
+                        <p class="text-gray-600 mt-2">Analytics & Προβλέψεις</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <label class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
+                            📁 Import
+                            <input type="file" id="importFile" accept=".json" class="hidden">
+                        </label>
+                        <button id="exportBtn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                            💾 Export
+                        </button>
+                        <button id="clearBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                            🗑️ Clear
+                        </button>
+                    </div>
+                </div>
+                <div id="stats" class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-blue-50 rounded p-3">
+                        <div class="text-xs text-blue-600">Τιμολόγια</div>
+                        <div class="text-2xl font-bold text-blue-700" id="statInvoices">0</div>
+                    </div>
+                    <div class="bg-green-50 rounded p-3">
+                        <div class="text-xs text-green-600">Προϊόντα</div>
+                        <div class="text-2xl font-bold text-green-700" id="statProducts">0</div>
+                    </div>
+                    <div class="bg-purple-50 rounded p-3">
+                        <div class="text-xs text-purple-600">Προμηθευτές</div>
+                        <div class="text-2xl font-bold text-purple-700" id="statSuppliers">0</div>
+                    </div>
+                    <div class="bg-orange-50 rounded p-3">
+                        <div class="text-xs text-orange-600">Σύνολο</div>
+                        <div class="text-2xl font-bold text-orange-700" id="statTotal">€0</div>
+                    </div>
+                </div>
+            </div>
 
+            <!-- Tabs -->
+            <div class="bg-white rounded-lg shadow-lg mb-6">
+                <div class="flex border-b overflow-x-auto">
+                    <button class="tab-btn flex-1 py-3 px-4 font-semibold text-sm border-b-2 border-indigo-600 text-indigo-600" data-tab="data">
+                        📋 Δεδομένα
+                    </button>
+                    <button class="tab-btn flex-1 py-3 px-4 font-semibold text-sm text-gray-600" data-tab="analytics">
+                        📊 Αναλύσεις
+                    </button>
+                    <button class="tab-btn flex-1 py-3 px-4 font-semibold text-sm text-gray-600" data-tab="predictions">
+                        🔮 Προβλέψεις
+                    </button>
+                </div>
+
+                <!-- Data Tab -->
+                <div id="tab-data" class="tab-content p-6">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-indigo-600 text-white">
+                                <tr>
+                                    <th class="p-3 text-left">Ημ/νία</th>
+                                    <th class="p-3 text-left">Προμηθευτής</th>
+                                    <th class="p-3 text-left">Προϊόν</th>
+                                    <th class="p-3 text-center">Ποσότητα</th>
+                                    <th class="p-3 text-right">Σύνολο</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTable" class="divide-y">
+                                <tr>
+                                    <td colspan="5" class="p-12 text-center text-gray-500">
+                                        Δεν υπάρχουν δεδομένα. Import αρχείο JSON.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="tab-analytics" class="tab-content p-6 hidden">
+                    <h2 class="text-2xl font-bold mb-6">📊 Αναλύσεις</h2>
+                    <div id="analyticsContent">
+                        <p class="text-center text-gray-500 py-12">Import δεδομένα για αναλύσεις</p>
+                    </div>
+                </div>
+
+                <!-- Predictions Tab -->
+                <div id="tab-predictions" class="tab-content p-6 hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">🔮 Προβλέψεις</h2>
+                        <button id="generatePredictionsBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                            Δημιουργία Προβλέψεων
+                        </button>
+                    </div>
+                    <div id="predictionsContent">
+                        <p class="text-center text-gray-500 py-12">Πάτα "Δημιουργία Προβλέψεων"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let invoices = [];
+
+        // Load from localStorage
+        function loadData() {
+            const saved = localStorage.getItem('invoices');
+            if (saved) {
+                try {
+                    invoices = JSON.parse(saved);
+                    updateUI();
+                } catch (e) {
+                    console.error('Error loading data:', e);
+                }
+            }
+        }
+
+        // Save to localStorage
+        function saveData() {
+            localStorage.setItem('invoices', JSON.stringify(invoices));
+        }
+
+        // Update UI
+        function updateUI() {
+            updateStats();
+            updateDataTable();
+            updateAnalytics();
+        }
+
+        // Update stats
+        function updateStats() {
+            const totalProducts = invoices.reduce((sum, inv) => sum + inv.items.length, 0);
+            const suppliers = [...new Set(invoices.map(inv => inv.supplier))];
+            const total = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
+
+            document.getElementById('statInvoices').textContent = invoices.length;
+            document.getElementById('statProducts').textContent = totalProducts;
+            document.getElementById('statSuppliers').textContent = suppliers.length;
+            document.getElementById('statTotal').textContent = '€' + total.toFixed(2);
+        }
+
+        // Update data table
+        function updateDataTable() {
+            const tbody = document.getElementById('dataTable');
+            if (invoices.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-12 text-center text-gray-500">Δεν υπάρχουν δεδομένα</td></tr>';
+                return;
+            }
+
+            let html = '';
+            invoices.forEach(inv => {
+                inv.items.forEach((item, idx) => {
+                    html += `<tr class="hover:bg-gray-50">`;
+                    if (idx === 0) {
+                        html += `<td class="p-3" rowspan="${inv.items.length}">${inv.date}</td>`;
+                        html += `<td class="p-3 font-semibold" rowspan="${inv.items.length}">${inv.supplier}</td>`;
+                    }
+                    html += `<td class="p-3">${item.product}</td>`;
+                    html += `<td class="p-3 text-center">${item.quantity} ${item.unit}</td>`;
+                    html += `<td class="p-3 text-right font-semibold">€${item.total_price.toFixed(2)}</td>`;
+                    html += `</tr>`;
+                });
+            });
+            tbody.innerHTML = html;
+        }
+
+        // Update analytics
+        function updateAnalytics() {
+            if (invoices.length === 0) return;
+
+            const productStats = {};
+            const supplierStats = {};
+
+            invoices.forEach(inv => {
+                if (!supplierStats[inv.supplier]) {
+                    supplierStats[inv.supplier] = { name: inv.supplier, total: 0, count: 0 };
+                }
+                supplierStats[inv.supplier].total += inv.total_amount || 0;
+                supplierStats[inv.supplier].count++;
+
+                inv.items.forEach(item => {
+                    if (!productStats[item.product]) {
+                        productStats[item.product] = {
+                            product: item.product,
+                            category: item.category,
+                            totalQuantity: 0,
+                            totalSpent: 0,
+                            orderCount: 0
+                        };
+                    }
+                    productStats[item.product].totalQuantity += item.quantity;
+                    productStats[item.product].totalSpent += item.total_price;
+                    productStats[item.product].orderCount++;
+                });
+            });
+
+            const topProducts = Object.values(productStats).sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 10);
+            const topSuppliers = Object.values(supplierStats).sort((a, b) => b.total - a.total);
+
+            let html = '<div class="space-y-6">';
+            
+            // Top Products
+            html += '<div class="bg-white border rounded-lg p-4">';
+            html += '<h3 class="text-lg font-bold mb-4">Top 10 Προϊόντα</h3>';
+            topProducts.forEach((prod, idx) => {
+                html += `<div class="flex justify-between items-center py-2 border-b">
+                    <div>
+                        <div class="font-semibold">${idx + 1}. ${prod.product}</div>
+                        <div class="text-xs text-gray-600">${prod.orderCount} παραγγελίες • ${prod.totalQuantity.toFixed(2)} ${prod.category}</div>
+                    </div>
+                    <div class="text-lg font-bold text-green-600">€${prod.totalSpent.toFixed(2)}</div>
+                </div>`;
+            });
+            html += '</div>';
+
+            // Suppliers
+            html += '<div class="bg-white border rounded-lg p-4">';
+            html += '<h3 class="text-lg font-bold mb-4">Προμηθευτές</h3>';
+            topSuppliers.forEach(sup => {
+                const percentage = (sup.total / invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0) * 100).toFixed(1);
+                html += `<div class="mb-4">
+                    <div class="flex justify-between mb-2">
+                        <div class="font-semibold">${sup.name}</div>
+                        <div class="font-bold text-purple-600">€${sup.total.toFixed(2)}</div>
+                    </div>
+                    <div class="h-2 bg-purple-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-purple-600" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-600 mt-1">${sup.count} τιμολόγια • ${percentage}%</div>
+                </div>`;
+            });
+            html += '</div>';
+
+            html += '</div>';
+            document.getElementById('analyticsContent').innerHTML = html;
+        }
+
+        // Generate predictions
+        function generatePredictions() {
+            if (invoices.length === 0) {
+                alert('Χρειάζονται δεδομένα!');
+                return;
+            }
+
+            const productData = {};
+            invoices.forEach(invoice => {
+                const month = new Date(invoice.date).getMonth();
+                invoice.items.forEach(item => {
+                    if (!productData[item.product]) {
+                        productData[item.product] = {
+                            product: item.product,
+                            category: item.category,
+                            unit: item.unit,
+                            monthlyQuantities: Array(12).fill(0),
+                            totalOrders: 0,
+                            avgPrice: 0,
+                            lastDate: invoice.date
+                        };
+                    }
+                    productData[item.product].monthlyQuantities[month] += item.quantity;
+                    productData[item.product].totalOrders++;
+                    productData[item.product].avgPrice = item.unit_price;
+                });
+            });
+
+            const currentMonth = new Date().getMonth();
+            const nextMonth = (currentMonth + 1) % 12;
+            
+            const predictions = Object.values(productData).map(data => {
+                const avgQuantity = data.totalOrders > 0 
+                    ? data.monthlyQuantities.reduce((a, b) => a + b, 0) / data.totalOrders
+                    : 0;
+
+                const seasonalFactor = data.monthlyQuantities[nextMonth] > 0 
+                    ? data.monthlyQuantities[nextMonth] / (data.monthlyQuantities.reduce((a, b) => a + b, 0) / 12 || 1)
+                    : 1;
+
+                const predictedQuantity = Math.round(avgQuantity * seasonalFactor * 1.1 * 100) / 100;
+                
+                return {
+                    product: data.product,
+                    category: data.category,
+                    predictedQuantity: predictedQuantity > 0 ? predictedQuantity : avgQuantity,
+                    unit: data.unit,
+                    estimatedTotal: (predictedQuantity * data.avgPrice).toFixed(2),
+                    confidence: data.totalOrders >= 3 ? 'Υψηλή' : data.totalOrders >= 2 ? 'Μέτρια' : 'Χαμηλή'
+                };
+            }).filter(p => p.predictedQuantity > 0);
+
+            let html = '<div class="space-y-3">';
+            predictions.forEach(pred => {
+                const colorClass = pred.confidence === 'Υψηλή' ? 'bg-green-50 border-green-200' : 
+                                   pred.confidence === 'Μέτρια' ? 'bg-yellow-50 border-yellow-200' : 
+                                   'bg-orange-50 border-orange-200';
+                html += `<div class="border-2 rounded-lg p-4 ${colorClass}">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold">${pred.product}</div>
+                            <div class="text-sm text-gray-600">${pred.category}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-indigo-600">${pred.predictedQuantity} ${pred.unit}</div>
+                            <div class="text-sm text-green-600">€${pred.estimatedTotal}</div>
+                            <div class="text-xs text-gray-600">Εμπιστοσύνη: ${pred.confidence}</div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            const total = predictions.reduce((sum, p) => sum + parseFloat(p.estimatedTotal), 0);
+            html += `<div class="mt-6 text-center p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div class="text-sm text-gray-600">Εκτιμώμενο Συνολικό Κόστος</div>
+                <div class="text-3xl font-bold text-indigo-600">€${total.toFixed(2)}</div>
+            </div>`;
+
+            document.getElementById('predictionsContent').innerHTML = html;
+        }
+
+        // Export
+        function exportData() {
+            if (invoices.length === 0) {
+                alert('Δεν υπάρχουν δεδομένα για export!');
+                return;
+            }
+
+            const dataStr = JSON.stringify({ invoices, exportDate: new Date().toISOString() }, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `invoices_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // Import
+        function importData(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.invoices && Array.isArray(data.invoices)) {
+                        invoices = data.invoices;
+                        saveData();
+                        updateUI();
+                        alert(`✅ Import επιτυχής! ${invoices.length} τιμολόγια`);
+                    } else {
+                        alert('❌ Λάθος μορφή αρχείου');
+                    }
+                } catch (error) {
+                    alert('❌ Σφάλμα: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Clear data
+        function clearData() {
+            if (confirm('Σίγουρα θέλεις να διαγράψεις ΟΛΑ τα δεδομένα;')) {
+                invoices = [];
+                saveData();
+                updateUI();
+                document.getElementById('predictionsContent').innerHTML = '<p class="text-center text-gray-500 py-12">Πάτα "Δημιουργία Προβλέψεων"</p>';
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+                    b.classList.add('text-gray-600');
+                });
+                btn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+                btn.classList.remove('text-gray-600');
+
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            });
+        });
+
+        // Event listeners
+        document.getElementById('exportBtn').addEventListener('click', exportData);
+        document.getElementById('importFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) importData(e.target.files[0]);
+        });
+        document.getElementById('clearBtn').addEventListener('click', clearData);
+        document.getElementById('generatePredictionsBtn').addEventListener('click', generatePredictions);
+
+        // Load data on start
+        loadData();
+    </script>
+</body>
+</html>
